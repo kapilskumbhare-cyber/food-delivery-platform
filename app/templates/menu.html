@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% block title %}Menu{% endblock %}
+{% block content %}
+<div id="restaurant-header" class="mb-4"></div>
+<div class="row g-3" id="menu-list"></div>
+{% endblock %}
+{% block scripts %}
+<script>
+const restaurantId = {{ restaurant_id }};
+
+async function loadMenu() {
+  try {
+    const restaurant = await apiFetch(`/api/restaurants/${restaurantId}`);
+    document.getElementById('restaurant-header').innerHTML = `
+      <h3>${restaurant.name}</h3>
+      <p class="text-muted">${restaurant.location}</p>
+    `;
+
+    const menuList = document.getElementById('menu-list');
+    if (restaurant.menu.length === 0) {
+      menuList.innerHTML = '<p class="text-muted">No items available right now.</p>';
+      return;
+    }
+
+    menuList.innerHTML = restaurant.menu.map(item => `
+      <div class="col-md-4">
+        <div class="card p-3 h-100 d-flex flex-column">
+          <h6>${item.name}</h6>
+          <p class="mb-2">₹${item.price.toFixed(2)}</p>
+          <button class="btn btn-sm btn-outline-dark mt-auto"
+            onclick="addToCart(${restaurantId}, ${item.id}, '${item.name.replace(/'/g, "\\'")}', ${item.price})">
+            Add to cart
+          </button>
+        </div>
+      </div>
+    `).join('');
+  } catch (err) {
+    document.getElementById('menu-list').innerHTML = `<p class="text-danger">${err.message}</p>`;
+  }
+}
+
+loadMenu();
+</script>
+{% endblock %}

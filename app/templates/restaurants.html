@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% block title %}Restaurants{% endblock %}
+{% block content %}
+<h3 class="mb-3">Restaurants</h3>
+<div class="input-group mb-4" style="max-width: 400px;">
+  <input type="text" class="form-control" id="search" placeholder="Search by name">
+  <button class="btn btn-outline-dark" id="search-btn">Search</button>
+</div>
+<div class="row g-3" id="restaurant-list"></div>
+{% endblock %}
+{% block scripts %}
+<script>
+async function loadRestaurants(search = '') {
+  const list = document.getElementById('restaurant-list');
+  list.innerHTML = '<p class="text-muted">Loading...</p>';
+  try {
+    const query = search ? `?search=${encodeURIComponent(search)}` : '';
+    const restaurants = await apiFetch(`/api/restaurants${query}`);
+    if (restaurants.length === 0) {
+      list.innerHTML = '<p class="text-muted">No restaurants found.</p>';
+      return;
+    }
+    list.innerHTML = restaurants.map(r => `
+      <div class="col-md-4">
+        <a href="/restaurants/${r.id}" class="text-decoration-none text-dark">
+          <div class="card p-3 h-100">
+            <h5>${r.name}</h5>
+            <p class="text-muted mb-0">${r.location}</p>
+          </div>
+        </a>
+      </div>
+    `).join('');
+  } catch (err) {
+    list.innerHTML = `<p class="text-danger">${err.message}</p>`;
+  }
+}
+
+document.getElementById('search-btn').addEventListener('click', () => {
+  loadRestaurants(document.getElementById('search').value);
+});
+
+loadRestaurants();
+</script>
+{% endblock %}

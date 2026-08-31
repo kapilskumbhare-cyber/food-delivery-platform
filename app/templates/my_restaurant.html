@@ -1,0 +1,185 @@
+{% extends "base.html" %}
+{% block title %}My Restaurant{% endblock %}
+{% block content %}
+<div id="setup-box"></div>
+
+<div id="dashboard-box" class="d-none">
+  <ul class="nav nav-tabs mb-3">
+    <li class="nav-item"><a class="nav-link active" data-tab="menu" href="#">Menu</a></li>
+    <li class="nav-item"><a class="nav-link" data-tab="incoming" href="#">Incoming Orders</a></li>
+  </ul>
+  <div id="menu-tab"></div>
+  <div id="incoming-tab" class="d-none"></div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+let myRestaurant = null;
+
+async function init() {
+  if (!getToken() || getRole() !== 'restaurant') {
+    document.getElementById('setup-box').innerHTML = '<p class="text-muted">Log in as a restaurant owner to access this page.</p>';
+    return;
+  }
+
+  try {
+    // No "my restaurant" endpoint exists yet, so we find it via the
+    // incoming-orders route's ownership check by trying menu ops directly.
+    // Simpler: ask the customer to enter it once, stored client-side.
+    const savedId = localStorage.getItem('my_restaurant_id');
+    if (savedId) {
+      myRestaurant = await apiFetch(`/api/restaurants/${savedId}`);
+      showDashboard();
+    } else {
+      showSetupForm();
+    }
+  } catch (err) {
+    showSetupForm();
+  }
+}
+
+function showSetupForm() {
+  document.getElementById('setup-box').innerHTML = `
+    <div class="card p-4" style="max-width: 500px;">
+      <h5>Set up your restaurant</h5>
+      <div class="mb-2"><input class="form-control" id="r-name" placeholder="Restaurant name"></div>
+      <div class="mb-2"><input class="form-control" id="r-location" placeholder="Location"></div>
+      <div id="setup-error" class="alert alert-danger d-none"></div>
+      <button class="btn btn-dark" id="create-restaurant-btn">Create</button>
+    </div>
+  `;
+  document.getElementById('create-restaurant-btn').addEventListener('click', async () => {
+    const errorBox = document.getElementById('setup-error');
+    try {
+      const r = await apiFetch('/api/restaurants', {
+        method: 'POST',
+        body: JSON.stringify({
+          name: document.getElementById('r-name').value,
+          location: document.getElementById('r-location').value,
+        }),
+      });
+      localStorage.setItem('my_restaurant_id', r.id);
+      myRestaurant = r;
+      document.getElementById('setup-box').innerHTML = '';
+      showDashboard();
+    } catch (err) {
+      errorBox.textContent = err.message;
+      errorBox.classList.remove('d-none');
+    }
+  });
+}
+
+function showDashboard() {
+  document.getElementById('dashboard-box').classList.remove('d-none');
+  document.querySelectorAll('[data-tab]').forEach(tabLink => {
+    tabLink.addEventListener('click', (e) => {
+      e.preventDefault();
+      document.querySelectorAll('[data-tab]').forEach(l => l.classList.remove('active'));
+      tabLink.classList.add('active');
+      const tab = tabLink.dataset.tab;
+      document.getElementById('menu-tab').classList.toggle('d-none', tab !== 'menu');
+      document.getElementById('incoming-tab').classList.toggle('d-none', tab !== 'incoming');
+      if (tab === 'incoming') loadIncomingOrders();
+    });
+  });
+  loadMenuTab();
+}
+
+async function loadMenuTab() {
+  const restaurant = await apiFetch(`/api/restaurants/${myRestaurant.id}`);
+  const tab = document.getElementById('menu-tab');
+  tab.innerHTML = `
+    <div class="card p-3 mb-3">
+      <h6>Add menu item</h6>
+      <div class="row g-2">
+        <div class="col"><input class="form-control" id="item-name" placeholder="Item name"></div>
+        <div class="col"><input class="form-control" id="item-price" type="number" step="0.01" placeholder="Price"></div>
+        <div class="col-auto"><button class="btn btn-dark" id="add-item-btn">Add</button></div>
+      </div>
+    </div>
+    <div class="row g-3">
+      ${restaurant.menu.map(item => `
+        <div class="col-md-4">
+          <div class="card p-3">
+            <strong>${item.name}</strong>
+            <div>₹${item.price.toFixed(2)}</div>
+            <button class="btn btn-sm btn-outline-danger mt-2" onclick="deleteItem(${item.id})">Remove</button>
+          </div>
+        </div>
+      `).join('') || '<p class="text-muted">No items yet.</p>'}
+    </div>
+  `;
+  document.getElementById('add-item-btn').addEventListener('click', async () => {
+    try {
+      await apiFetch(`/api/restaurants/${myRestaurant.id}/menu`, {
+        method: 'POST',
+        body: JSON.stringify({
+          name: document.getElementById('item-name').value,
+          price: parseFloat(document.getElementById('item-price').value),
+        }),
+      });
+      loadMenuTab();
+    } catch (err) {
+      alert(err.message);
+    }
+  });
+}
+
+async function deleteItem(itemId) {
+  try {
+    await apiFetch(`/api/restaurants/${myRestaurant.id}/menu/${itemId}`, { method: 'DELETE' });
+    loadMenuTab();
+  } catch (err) {
+    alert(err.message);
+  }
+}
+
+const NEXT_ACTION = {
+  PAYMENT_SUCCESS: [['RESTAURANT_ACCEPTED', 'Accept'], ['ORDER_REJECTED', 'Reject']],
+  RESTAURANT_ACCEPTED: [['PREPARING', 'Start preparing']],
+  PREPARING: [['READY', 'Mark ready']],
+  READY: [['DELIVERED', 'Mark delivered']],
+};
+
+async function loadIncomingOrders() {
+  const tab = document.getElementById('incoming-tab');
+  try {
+    const orders = await apiFetch('/api/orders/restaurant');
+    if (!orders.length) {
+      tab.innerHTML = '<p class="text-muted">No orders yet.</p>';
+      return;
+    }
+    tab.innerHTML = orders.map(o => `
+      <div class="card p-3 mb-3">
+        <div class="d-flex justify-content-between">
+          <strong>Order #${o.id}</strong>
+          <span class="badge status-badge status-${o.status}">${o.status}</span>
+        </div>
+        <div class="mt-2 fw-bold">₹${o.total_amount.toFixed(2)}</div>
+        <div class="mt-2">
+          ${(NEXT_ACTION[o.status] || []).map(([status, label]) =>
+            `<button class="btn btn-sm btn-outline-dark me-2" onclick="advanceOrder(${o.id}, '${status}')">${label}</button>`
+          ).join('')}
+        </div>
+      </div>
+    `).join('');
+  } catch (err) {
+    tab.innerHTML = `<p class="text-danger">${err.message}</p>`;
+  }
+}
+
+async function advanceOrder(orderId, status) {
+  try {
+    await apiFetch(`/api/orders/${orderId}/status`, {
+      method: 'PATCH',
+      body: JSON.stringify({ status }),
+    });
+    loadIncomingOrders();
+  } catch (err) {
+    alert(err.message);
+  }
+}
+
+init();
+</script>
+{% endblock %}

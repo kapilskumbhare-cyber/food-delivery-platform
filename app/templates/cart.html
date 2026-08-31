@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+{% block title %}Cart{% endblock %}
+{% block content %}
+<h3 class="mb-3">Your Cart</h3>
+<div id="cart-box"></div>
+{% endblock %}
+{% block scripts %}
+<script>
+function renderCart() {
+  const cart = getCart();
+  const box = document.getElementById('cart-box');
+
+  if (!cart.items.length) {
+    box.innerHTML = '<p class="text-muted">Your cart is empty. <a href="/restaurants">Browse restaurants</a>.</p>';
+    return;
+  }
+
+  const total = cart.items.reduce((sum, i) => sum + i.price * i.quantity, 0);
+
+  box.innerHTML = `
+    <div class="card p-3 mb-3">
+      ${cart.items.map(i => `
+        <div class="d-flex justify-content-between border-bottom py-2">
+          <span>${i.name} × ${i.quantity}</span>
+          <span>₹${(i.price * i.quantity).toFixed(2)}</span>
+        </div>
+      `).join('')}
+      <div class="d-flex justify-content-between pt-2 fw-bold">
+        <span>Total</span>
+        <span>₹${total.toFixed(2)}</span>
+      </div>
+    </div>
+    <div id="error-box" class="alert alert-danger d-none"></div>
+    <button class="btn btn-dark" id="place-order-btn">Place order & pay</button>
+  `;
+
+  document.getElementById('place-order-btn').addEventListener('click', placeOrderAndPay);
+}
+
+async function placeOrderAndPay() {
+  const errorBox = document.getElementById('error-box');
+  errorBox.classList.add('d-none');
+
+  if (!getToken()) {
+    window.location.href = '/';
+    return;
+  }
+
+  const cart = getCart();
+  try {
+    const order = await apiFetch('/api/orders', {
+      method: 'POST',
+      body: JSON.stringify({
+        restaurant_id: cart.restaurant_id,
+        items: cart.items.map(i => ({ menu_item_id: i.menu_item_id, quantity: i.quantity })),
+      }),
+    });
+
+    const paymentResult = await apiFetch(`/api/orders/${order.id}/pay`, { method: 'POST' });
+
+    clearCart();
+
+    if (paymentResult.order.status === 'PAYMENT_SUCCESS') {
+      alert('Payment successful! Order placed.');
+    } else {
+      alert('Payment failed. The order was not confirmed — check My Orders to retry or cancel.');
+    }
+    window.location.href = '/orders';
+  } catch (err) {
+    errorBox.textContent = err.message;
+    errorBox.classList.remove('d-none');
+  }
+}
+
+renderCart();
+</script>
+{% endblock %}
