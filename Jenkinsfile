@@ -3,23 +3,26 @@ pipeline {
 
     stages {
 
-        stage("Checkout") {
+        stage('Checkout SCM') {
             steps {
-                 checkout scm
+                checkout scm
             }
         }
 
-        stage("Install Dependencies") {
+        stage('Install Dependencies') {
             steps {
-                sh "pip install -r requirements.txt"
+                sh '''
+                    python3 -m venv .venv
+                    .venv/bin/pip install --upgrade pip
+                    .venv/bin/pip install -r requirements.txt
+                '''
             }
         }
 
-        stage("Test") {
+        stage('Test') {
             steps {
-               sh "python -m py_compile run.py"
+                sh '.venv/bin/pytest'
             }
         }
-
     }
 }
