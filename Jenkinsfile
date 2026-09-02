@@ -53,5 +53,12 @@ pipeline {
               sh "docker push kapilkumbhare/delivery:latest"
              }
          }
+
+        stage("Deploy") {
+            steps {
+                sh "docker compose pull"
+                sh "docker compose up -d"
+             }
+          }
     }
 }

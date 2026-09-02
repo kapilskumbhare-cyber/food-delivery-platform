@@ -1,7 +1,7 @@
 services:
 
   flask:
-    build: .
+    image: kapilkumbhare/delivery:latest
     ports:
       - "5000:5000"
     environment:
@@ -13,7 +13,8 @@ services:
       SECRET_KEY: local-secret
       JWT_SECRET_KEY: local-jwt-secret
     depends_on:
-      - sql
+      sql:
+        condition: service_healthy
 
   sql:
     image: mysql:8.0
@@ -24,7 +25,11 @@ services:
       MYSQL_PASSWORD: changeme
     volumes:
       - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-prootpassword"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
 
 volumes:
   mysql_data:
-
