@@ -7,11 +7,11 @@ services:
     environment:
       DB_HOST: sql
       DB_PORT: 3306
-      DB_USER: food_user
-      DB_PASSWORD: changeme
-      DB_NAME: food_delivery
-      SECRET_KEY: local-secret
-      JWT_SECRET_KEY: local-jwt-secret
+      DB_USER: ${MYSQL_USER}
+      DB_PASSWORD: ${MYSQL_PASSWORD}
+      DB_NAME: ${MYSQL_DATABASE}
+      SECRET_KEY: ${SECRET_KEY}
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY}
     depends_on:
       sql:
         condition: service_healthy
@@ -19,14 +19,14 @@ services:
   sql:
     image: mysql:8.0
     environment:
-      MYSQL_ROOT_PASSWORD: rootpassword
-      MYSQL_DATABASE: food_delivery
-      MYSQL_USER: food_user
-      MYSQL_PASSWORD: changeme
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
     volumes:
       - mysql_data:/var/lib/mysql
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-prootpassword"]
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${MYSQL_ROOT_PASSWORD}"]
       interval: 5s
       timeout: 5s
       retries: 10
