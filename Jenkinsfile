@@ -21,7 +21,7 @@ pipeline {
 
         stage('Test') {
             steps {
-                echo "test success"
+                sh "python -m pytest"
             }
         }
         stage("docker build") {
