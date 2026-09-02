@@ -21,7 +21,7 @@ pipeline {
 
         stage('Test') {
             steps {
-                sh "python -m pytest"
+                sh ".venv/bin/python -m pytest"
             }
         }
         stage("docker build") {
